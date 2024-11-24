@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template for creating an Amazon MSK cluster'
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: Name of the MSK cluster
+    Default: my-msk-cluster
+
+  KafkaVersion:
+    Type: String
+    Description: Apache Kafka version
+    Default: 3.4.0
+    AllowedValues:
+      - 2.8.1
+      - 3.3.2
+      - 3.4.0
+      - 3.5.1
+
+  InstanceType:
+    Type: String
+    Description: MSK broker instance type
+    Default: kafka.t3.small
+    AllowedValues:
+      - kafka.t3.small
+      - kafka.m5.large
+      - kafka.m5.xlarge
+      - kafka.m5.2xlarge
+
+  NumberOfBrokerNodes:
+    Type: Number
+    Description: Number of broker nodes in the cluster
+    Default: 3
+    MinValue: 3
+    MaxValue: 30
+
+  VolumeSize:
+    Type: Number
+    Description: Size of EBS volumes attached to brokers (in GiB)
+    Default: 100
+    MinValue: 1
+
+Resources:
+  MSKCluster:
+    Type: AWS::MSK::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+      KafkaVersion: !Ref KafkaVersion
+      NumberOfBrokerNodes: !Ref NumberOfBrokerNodes
+      
+      BrokerNodeGroupInfo:
+        InstanceType: !Ref InstanceType
+        ClientSubnets: 
+          - !Ref SubnetId1
+          - !Ref SubnetId2
+          - !Ref SubnetId3
+        StorageInfo:
+          EBSStorageInfo:
+            VolumeSize: !Ref VolumeSize
+        SecurityGroups: 
+          - !Ref SecurityGroupId
+
+      EncryptionInfo:
+        EncryptionInTransit:
+          ClientBroker: TLS
+          InCluster: true
+        EncryptionAtRest:
+          DataVolumeKMSKeyId: !Ref KMSKeyId
+
+      EnhancedMonitoring: PER_BROKER
+      
+      OpenMonitoring:
+        Prometheus:
+          JmxExporter:
+            EnabledInBroker: true
+          NodeExporter:
+            EnabledInBroker: true
+
+      LoggingInfo:
+        BrokerLogs:
+          CloudWatchLogs:
+            Enabled: true
+            LogGroup: !Ref CloudWatchLogGroup
+          S3:
+            Enabled: true
+            Bucket: !Ref S3Bucket
+            Prefix: "kafka-logs/"
+
+      ClientAuthentication:
+        Sasl:
+          Iam:
+            Enabled: true
+
+Outputs:
+  ClusterArn:
+    Description: ARN of the MSK cluster
+    Value: !Ref MSKCluster
+
+  ZookeeperConnectString:
+    Description: Zookeeper connection string
+    Value: !GetAtt MSKCluster.ZookeeperConnectString
+
+  BootstrapBrokersTLS:
+    Description: Bootstrap brokers for TLS connection
+    Value: !GetAtt MSKCluster.BootstrapBrokersTls
+
+  BootstrapBrokersIAM:
+    Description: Bootstrap brokers for IAM authentication
+    Value: !GetAtt MSKCluster.BootstrapBrokersIam

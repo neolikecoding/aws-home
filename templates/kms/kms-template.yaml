@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template for creating a Customer Managed KMS Key'
+
+Parameters:
+  KeyAliasName:
+    Type: String
+    Description: Alias for the KMS key (without alias/ prefix)
+    Default: my-application-key
+
+  KeyDescription:
+    Type: String
+    Description: Description for the KMS key
+    Default: Customer managed key for application encryption
+
+  DeletionWindowInDays:
+    Type: Number
+    Description: Waiting period (in days) before deleting the key
+    Default: 30
+    MinValue: 7
+    MaxValue: 30
+
+  EnableKeyRotation:
+    Type: String
+    Description: Enable automatic key rotation
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  AdminRoleArn:
+    Type: String
+    Description: ARN of the IAM role that will administer the key
+    Default: 'arn:aws:iam::{AWS::AccountId}:user/cloud_user'
+
+Resources:
+  CustomerManagedKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Ref KeyDescription
+      EnableKeyRotation: !Ref EnableKeyRotation
+      PendingWindowInDays: !Ref DeletionWindowInDays
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-policy
+        Statement:
+          # Allow root user full access to the key
+          - Sid: EnableRootUserPermissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          
+          # Allow key administrators to manage the key
+          - Sid: AdminPermissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+                # # - !If 
+                # #   - HasAdminRole
+                # #   - !Ref AdminRoleArn
+                #   - !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: '*'
+          
+          # Allow key users to use the key for cryptographic operations
+          - Sid: KeyUserPermissions
+            Effect: Allow
+            Principal:
+              AWS: '*'
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+            Condition:
+              StringEquals:
+                aws:PrincipalAccount: !Ref AWS::AccountId
+      Tags:
+        - Key: Name
+          Value: !Ref KeyAliasName
+        - Key: Environment
+          Value: !Ref AWS::StackName
+
+  KeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${KeyAliasName}'
+      TargetKeyId: !Ref CustomerManagedKey
+
+Conditions:
+  HasAdminRole: !Not [!Equals [!Ref AdminRoleArn, '']]
+
+Outputs:
+  KeyId:
+    Description: KMS Key ID
+    Value: !Ref CustomerManagedKey
+
+  KeyArn:
+    Description: KMS Key ARN
+    Value: !GetAtt CustomerManagedKey.Arn
+
+  KeyAlias:
+    Description: KMS Key Alias
+    Value: !Ref KeyAlias
+
+  KeyAliasArn:
+    Description: KMS Key Alias ARN
+    Value: !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:${KeyAlias}'
