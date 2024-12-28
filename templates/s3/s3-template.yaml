@@ -11,7 +11,7 @@ Resources:
   Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub ${AWS::StackName}-raw-bucket
+      BucketName: !Sub ${AWS::StackName}-raw-bucket-${AWS::AccountId}
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -37,3 +37,9 @@ Resources:
             Condition:
               Bool:
                 aws:SecureTransport: 'false'
+Outputs:
+    S3BucketName:
+        Description: Name of the bucket
+        Value: !Ref Bucket
+        Export:
+          Name: !Sub ${AppName}-raw-bucket

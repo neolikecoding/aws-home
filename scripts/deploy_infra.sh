@@ -33,6 +33,8 @@ SUBNETS_ID1=$(aws ec2 describe-subnets | jq -r '.Subnets[] | select(.Availabilit
 SUBNETS_ID2=$(aws ec2 describe-subnets | jq -r '.Subnets[] | select(.AvailabilityZoneId == "use1-az2").SubnetId')
 SUBNETS_ID3=$(aws ec2 describe-subnets | jq -r '.Subnets[] | select(.AvailabilityZoneId == "use1-az3").SubnetId')
 
+SECURITY_GROUP_ID=$(aws ec2 describe-security-groups | jq -r '.SecurityGroups[] | select(.GroupName == "default").GroupId')
+
 # ADMIN_ROLE_ARN=$
 
 
@@ -80,6 +82,7 @@ echo "  VPC_ID - $VPC_ID"
 echo "  SUBNETS_ID1 - $SUBNETS_ID1"
 echo "  SUBNETS_ID2 - $SUBNETS_ID2"
 echo "  SUBNETS_ID3 - $SUBNETS_ID3"
+echo "  SECURITY_GROUP_ID - $SECURITY_GROUP_ID"
 
 
 echo " Software versions:"
@@ -122,6 +125,64 @@ function deploy_buckets()
         --no-fail-on-empty-changeset
 
 }
+
+function deploy_msk()
+{
+    STACK_NAME=$PRODUCT"-msk"
+    echo "Stack Name: $STACK_NAME is being deployed"
+    BASE_DIR="$(pwd)/templates/msk"
+    echo "Base Directory: $BASE_DIR"
+
+    ## Get KMS_KEY_ID
+    KMS_KEY_ID=$(aws cloudformation describe-stacks --stack-name $PRODUCT"-kms-key" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "KeyArn").OutputValue')
+    echo "KMS_KEY_ID: $KMS_KEY_ID"
+
+    ## Get S3 Bucket Name
+    S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $PRODUCT"-buckets" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "S3BucketName").OutputValue')
+    echo "S3_BUCKET_NAME: $S3_BUCKET_NAME"
+    
+
+    aws cloudformation deploy \
+        --template-file $BASE_DIR/msk-template-sl.yaml \
+        --stack-name $STACK_NAME \
+        --parameter-overrides \
+        KmsKeyId=$KMS_KEY_ID \
+        SubnetId1=$SUBNETS_ID1 \
+        SubnetId2=$SUBNETS_ID2 \
+        SubnetId3=$SUBNETS_ID3 \
+        S3BucketName=$S3_BUCKET_NAME \
+        SecurityGroupId=$SECURITY_GROUP_ID \
+        --no-fail-on-empty-changeset
+
+    # aws cloudformation deploy \
+    #     --template-file $BASE_DIR/msk-template-prov.yaml \
+    #     --stack-name $STACK_NAME \
+    #     --parameter-overrides \
+    #     KmsKeyId=$KMS_KEY_ID \
+    #     SubnetId1=$SUBNETS_ID1 \
+    #     SubnetId2=$SUBNETS_ID2 \
+    #     SubnetId3=$SUBNETS_ID3 \
+    #     S3BucketName=$S3_BUCKET_NAME \
+    #     SecurityGroupId=$SECURITY_GROUP_ID \
+    #     --no-fail-on-empty-changeset
+
+
+}
+
+function main() {
+
+  deploy_kms_key
+  deploy_buckets
+  deploy_msk
+
+  echo "Infrastructure completed successfully!"
+}
+
+###
+# Script Execution
+###
+
+main "$@"
 
 # function get_stage(){
 #   local accountAlias=$(aws iam list-account-aliases --query "AccountAliases" --output text)
@@ -742,17 +803,3 @@ function deploy_buckets()
 
 #     # aws s3 cp templates/dags/dag_bag/ s3://vw-cred-datalake-${ENV}-dags-store/dags/ --server-side-encryption=aws:kms --recursive
 # }
-
-function main() {
-
-  deploy_kms_key
-  deploy_buckets
-
-  echo "Infrastructure completed successfully!"
-}
-
-###
-# Script Execution
-###
-
-main "$@"

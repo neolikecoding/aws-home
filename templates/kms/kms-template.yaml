@@ -31,7 +31,7 @@ Parameters:
     Type: String
     Description: ARN of the IAM role that will administer the key
     Default: 'arn:aws:iam::{AWS::AccountId}:user/cloud_user'
-
+  
 Resources:
   CustomerManagedKey:
     Type: AWS::KMS::Key

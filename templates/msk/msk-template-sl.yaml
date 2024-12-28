@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template for creating an Amazon MSK cluster'
+
+Parameters:
+
+  KmsKeyId:
+    Type: String
+    Description: KMS Key ID to be used for encryption
+
+  SubnetId1:
+    Type: String
+    Description: Subnet ID to be used for VPC access
+  
+  SubnetId2:
+    Type: String
+    Description: Subnet ID to be used for VPC access
+
+  SecurityGroupId:
+    Type: String
+    Description: ID of the security group to be used for VPC access
+
+  ClusterName:
+    Type: String
+    Description: Name of the MSK cluster
+    Default: my-msk-cluster
+  
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyMSKCluster:
+    Type: 'AWS::MSK::ServerlessCluster'
+    Properties:
+      ClusterName: !Ref ClusterName
+      VpcConfigs:
+        - SubnetIds:
+            - !Ref SubnetId1
+            - !Ref SubnetId2
+          SecurityGroups:
+            - !Ref SecurityGroupId
+      ClientAuthentication:
+        Sasl:
+          Iam:
+            Enabled: true
