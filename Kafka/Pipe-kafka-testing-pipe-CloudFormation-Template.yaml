@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template for EventBridge Pipekafka-testing-pipe
+Resources:
+  Role9cd02af3:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: Amazon_EventBridge_Pipe_kafka-testing-pipe2dae8f2a
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: pipes.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount:
+                  Fn::Sub: ${AWS::AccountId}
+                aws:SourceArn:
+                  Fn::Sub: >-
+                    arn:${AWS::Partition}:pipes:${AWS::Region}:${AWS::AccountId}:pipe/kafka-testing-pipe
+      MaxSessionDuration: 3600
+      Tags: []
+  Policyecf19469:
+    Type: AWS::IAM::RolePolicy
+    Properties:
+      PolicyName: EventBusPipeTargetTemplateebb234f1
+      RoleName:
+        Ref: Role9cd02af3
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - events:PutEvents
+            Resource:
+              - Fn::Sub: >-
+                  arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+  Policy632f1c33:
+    Type: AWS::IAM::RolePolicy
+    Properties:
+      PolicyName: SmkPipeSourceTemplateSecretc293f35a
+      RoleName:
+        Ref: Role9cd02af3
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - Fn::Sub: >-
+                  arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kafka-secret-Px0aJF
+  Pipe76facf27:
+    Type: AWS::Pipes::Pipe
+    DependsOn:
+      - Role9cd02af3
+      - Policyecf19469
+      - Policy632f1c33
+    Properties:
+      RoleArn:
+        Fn::GetAtt:
+          - Role9cd02af3
+          - Arn
+      Name: kafka-testing-pipe
+      DesiredState: RUNNING
+      Source: smk://pkc-921jm.us-east-2.aws.confluent.cloud:9092
+      SourceParameters:
+        SelfManagedKafkaParameters:
+          TopicName: user-topic
+          StartingPosition: LATEST
+          BatchSize: 1
+          Credentials:
+            SaslScram512Auth: >-
+              arn:aws:secretsmanager:us-east-1:058264163591:secret:kafka-secret-Px0aJF
+      LogConfiguration:
+        CloudwatchLogsLogDestination:
+          LogGroupArn:
+            Fn::Sub: >-
+              arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/vendedlogs/pipes/kafka-testing-pipe
+        Level: TRACE
+      TargetParameters:
+        EventBridgeEventBusParameters: {}
+      Target:
+        Fn::Sub: >-
+          arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+Parameters: {}
